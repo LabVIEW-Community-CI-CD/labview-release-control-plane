@@ -1,0 +1,41 @@
+{
+  "platform_policy": {
+    "schema_version": "1.0",
+    "autonomy": "autonomous_with_guardrails",
+    "slo": {
+      "rolling_window_days": 30,
+      "min_success_rate_pct": 99.0
+    },
+    "error_budget": {
+      "window_days": 30,
+      "max_failed_runs": 1,
+      "max_failure_rate_pct": 1.0
+    },
+    "freeze_policy": {
+      "auto_freeze_on_error_budget_breach": true,
+      "critical_dependency_gate_reasons": [
+        "tier0_dependency_drift",
+        "dependency_lineage_invalid"
+      ]
+    },
+    "rollback_policy": {
+      "enabled": true,
+      "deterministic": true,
+      "max_attempts": 1
+    },
+    "stable_window_policy": {
+      "allowed_utc_weekdays": [
+        "Monday"
+      ],
+      "override_reason_pattern": "^(?<reference>(?i:(?:CHG|INC|RFC|PR|TASK)-\\d{3,}|#\\d+))\\s*[:\\-]\\s*(?<summary>.+\\S)$",
+      "override_reason_min_length": 12
+    },
+    "break_glass_policy": {
+      "enabled": true,
+      "audit_required": true
+    },
+    "dependency_gates": {
+      "tier0_required": true
+    }
+  }
+}

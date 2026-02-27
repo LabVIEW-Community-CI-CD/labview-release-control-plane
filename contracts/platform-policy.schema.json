@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://labview-community-ci-cd.github.io/labview-release-control-plane/contracts/platform-policy.schema.json",
+  "title": "LabVIEW Release Platform Policy",
+  "type": "object",
+  "required": [
+    "platform_policy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "platform_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "autonomy",
+        "slo",
+        "error_budget",
+        "freeze_policy",
+        "rollback_policy",
+        "stable_window_policy",
+        "break_glass_policy",
+        "dependency_gates"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        },
+        "autonomy": {
+          "type": "string",
+          "enum": [
+            "autonomous_with_guardrails",
+            "manual"
+          ]
+        },
+        "slo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rolling_window_days",
+            "min_success_rate_pct"
+          ],
+          "properties": {
+            "rolling_window_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            },
+            "min_success_rate_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "error_budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "window_days",
+            "max_failed_runs",
+            "max_failure_rate_pct"
+          ],
+          "properties": {
+            "window_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            },
+            "max_failed_runs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_failure_rate_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "freeze_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "auto_freeze_on_error_budget_breach",
+            "critical_dependency_gate_reasons"
+          ],
+          "properties": {
+            "auto_freeze_on_error_budget_breach": {
+              "type": "boolean"
+            },
+            "critical_dependency_gate_reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "rollback_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "deterministic",
+            "max_attempts"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "deterministic": {
+              "type": "boolean"
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            }
+          }
+        },
+        "stable_window_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowed_utc_weekdays",
+            "override_reason_pattern",
+            "override_reason_min_length"
+          ],
+          "properties": {
+            "allowed_utc_weekdays": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Sunday",
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ]
+              },
+              "minItems": 1
+            },
+            "override_reason_pattern": {
+              "type": "string",
+              "minLength": 1
+            },
+            "override_reason_min_length": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 512
+            }
+          }
+        },
+        "break_glass_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "audit_required"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "audit_required": {
+              "type": "boolean"
+            }
+          }
+        },
+        "dependency_gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier0_required"
+          ],
+          "properties": {
+            "tier0_required": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

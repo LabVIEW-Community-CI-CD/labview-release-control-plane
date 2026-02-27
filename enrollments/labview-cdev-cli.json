@@ -1,0 +1,37 @@
+{
+  "repo_id": "LabVIEW-Community-CI-CD/labview-cdev-cli",
+  "release_workflow": "release-cli.yml",
+  "channels_supported": [
+    "canary",
+    "prerelease",
+    "stable"
+  ],
+  "required_assets": [
+    "cdev-cli-win-x64.zip",
+    "cdev-cli-win-x64.zip.sha256",
+    "cdev-cli-linux-x64.tar.gz",
+    "cdev-cli-linux-x64.tar.gz.sha256",
+    "cdev-cli.spdx.json",
+    "cdev-cli.slsa.json"
+  ],
+  "required_attestations": [
+    "cli-dependency-attestation.json",
+    "cdev-cli.slsa.json",
+    "cdev-cli.spdx.json"
+  ],
+  "dependency_graph": {
+    "tier0_dependencies": []
+  },
+  "incident_targets": {
+    "repository": "LabVIEW-Community-CI-CD/labview-cdev-cli",
+    "issue_titles": [
+      "cdev CLI Runtime Image Alert",
+      "Fork/Upstream Sync Guard Alert"
+    ]
+  },
+  "runtime_lineage_requirements": {
+    "runtime_image_repository": "ghcr.io/labview-community-ci-cd/labview-cdev-cli-runtime",
+    "runtime_image_digest_required": true,
+    "source_commit_required": true
+  }
+}

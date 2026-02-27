@@ -1,0 +1,50 @@
+name: run-control-plane
+description: Run org release-control-plane state-machine for one enrolled repo and emit program evidence.
+
+inputs:
+  mode:
+    description: Program mode.
+    required: false
+    default: Validate
+  dry_run:
+    description: Do not mutate release channels.
+    required: false
+    default: 'true'
+  policy_path:
+    description: Relative path to platform policy JSON.
+    required: false
+    default: policies/platform-policy.json
+  enrollment_path:
+    description: Relative path to repo enrollment JSON.
+    required: true
+  output_path:
+    description: Output path for program report artifact.
+    required: false
+    default: ''
+
+outputs:
+  program_report_path:
+    description: Absolute program report path.
+    value: ${{ steps.run_runtime.outputs.program_report_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Execute release program runtime
+      id: run_runtime
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $outputPath = '${{ inputs.output_path }}'
+        if ([string]::IsNullOrWhiteSpace($outputPath)) {
+          $outputPath = Join-Path $env:RUNNER_TEMP 'release-program-report.json'
+        }
+
+        & pwsh -NoProfile -File ./scripts/Invoke-ReleaseProgram.ps1 `
+          -Mode '${{ inputs.mode }}' `
+          -DryRun:$([System.Convert]::ToBoolean('${{ inputs.dry_run }}')) `
+          -PolicyPath '${{ inputs.policy_path }}' `
+          -EnrollmentPath '${{ inputs.enrollment_path }}' `
+          -OutputPath $outputPath
+
+        "program_report_path=$outputPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8

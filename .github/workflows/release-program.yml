@@ -1,0 +1,85 @@
+name: release-program
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Program mode.
+        required: false
+        default: Validate
+        type: choice
+        options:
+          - Validate
+          - CanaryCycle
+          - PromotePrerelease
+          - PromoteStable
+          - FullCycle
+          - Freeze
+          - Unfreeze
+          - Drill
+      dry_run:
+        description: Do not mutate release channels.
+        required: false
+        default: true
+        type: boolean
+      policy_path:
+        description: Relative path to platform policy JSON.
+        required: false
+        default: policies/platform-policy.json
+        type: string
+      enrollment_path:
+        description: Relative path to repo enrollment JSON.
+        required: false
+        default: enrollments/labview-cdev-surface-fork.json
+        type: string
+  workflow_call:
+    inputs:
+      mode:
+        required: false
+        default: Validate
+        type: string
+      dry_run:
+        required: false
+        default: true
+        type: boolean
+      policy_path:
+        required: false
+        default: policies/platform-policy.json
+        type: string
+      enrollment_path:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-program-${{ github.repository }}-${{ github.ref_name }}-${{ inputs.enrollment_path || 'default' }}
+  cancel-in-progress: false
+
+jobs:
+  release-program:
+    name: Release Program
+    runs-on: ubuntu-latest
+    outputs:
+      program_report_path: ${{ steps.run_control_plane.outputs.program_report_path }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run control-plane composite action
+        id: run_control_plane
+        uses: ./.github/actions/run-control-plane
+        with:
+          mode: ${{ inputs.mode || 'Validate' }}
+          dry_run: ${{ inputs.dry_run || true }}
+          policy_path: ${{ inputs.policy_path || 'policies/platform-policy.json' }}
+          enrollment_path: ${{ inputs.enrollment_path || 'enrollments/labview-cdev-surface-fork.json' }}
+
+      - name: Upload program report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-program-report-${{ github.run_id }}
+          path: ${{ steps.run_control_plane.outputs.program_report_path }}
+          if-no-files-found: error

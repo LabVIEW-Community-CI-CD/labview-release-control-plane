@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://labview-community-ci-cd.github.io/labview-release-control-plane/contracts/repo-enrollment.schema.json",
+  "title": "Release Platform Repo Enrollment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "repo_id",
+    "release_workflow",
+    "channels_supported",
+    "required_assets",
+    "required_attestations",
+    "dependency_graph",
+    "incident_targets",
+    "runtime_lineage_requirements"
+  ],
+  "properties": {
+    "repo_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "release_workflow": {
+      "type": "string",
+      "minLength": 1
+    },
+    "channels_supported": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "canary",
+          "prerelease",
+          "stable"
+        ]
+      },
+      "minItems": 1
+    },
+    "required_assets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "required_attestations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "dependency_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tier0_dependencies"
+      ],
+      "properties": {
+        "tier0_dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "incident_targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "issue_titles"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "issue_titles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "runtime_lineage_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_image_repository",
+        "runtime_image_digest_required",
+        "source_commit_required"
+      ],
+      "properties": {
+        "runtime_image_repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_image_digest_required": {
+          "type": "boolean"
+        },
+        "source_commit_required": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
