@@ -32,6 +32,21 @@ on:
         required: false
         default: enrollments/labview-cdev-surface-fork.json
         type: string
+      watch_timeout_minutes:
+        description: Timeout minutes to watch enrolled control-plane run.
+        required: false
+        default: '180'
+        type: string
+      poll_seconds:
+        description: Poll interval seconds to watch enrolled control-plane run.
+        required: false
+        default: '15'
+        type: string
+      host_validate_installer:
+        description: Run host-side NSIS validation (only when dispatching from Windows host).
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       mode:
@@ -49,6 +64,18 @@ on:
       enrollment_path:
         required: true
         type: string
+      watch_timeout_minutes:
+        required: false
+        default: '180'
+        type: string
+      poll_seconds:
+        required: false
+        default: '15'
+        type: string
+      host_validate_installer:
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -75,6 +102,9 @@ jobs:
           dry_run: ${{ inputs.dry_run || true }}
           policy_path: ${{ inputs.policy_path || 'policies/platform-policy.json' }}
           enrollment_path: ${{ inputs.enrollment_path || 'enrollments/labview-cdev-surface-fork.json' }}
+          watch_timeout_minutes: ${{ inputs.watch_timeout_minutes || '180' }}
+          poll_seconds: ${{ inputs.poll_seconds || '15' }}
+          host_validate_installer: ${{ inputs.host_validate_installer || false }}
 
       - name: Upload program report
         if: always()

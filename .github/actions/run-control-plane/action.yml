@@ -17,6 +17,26 @@ inputs:
   enrollment_path:
     description: Relative path to repo enrollment JSON.
     required: true
+  watch_timeout_minutes:
+    description: Timeout in minutes for enrolled control-plane workflow completion.
+    required: false
+    default: '180'
+  poll_seconds:
+    description: Poll interval in seconds while watching enrolled run status.
+    required: false
+    default: '15'
+  host_validate_installer:
+    description: Run host-side NSIS installer validation after successful canary promotion.
+    required: false
+    default: 'false'
+  surface_repo_root:
+    description: Local path to upstream labview-cdev-surface checkout for host validation.
+    required: false
+    default: D:\dev\labview-cdev-surface
+  host_workspace_root:
+    description: Workspace root expected by NSIS installer report contract.
+    required: false
+    default: C:\dev
   output_path:
     description: Output path for program report artifact.
     required: false
@@ -45,6 +65,11 @@ runs:
           -DryRun:$([System.Convert]::ToBoolean('${{ inputs.dry_run }}')) `
           -PolicyPath '${{ inputs.policy_path }}' `
           -EnrollmentPath '${{ inputs.enrollment_path }}' `
+          -WatchTimeoutMinutes ([int]'${{ inputs.watch_timeout_minutes }}') `
+          -PollSeconds ([int]'${{ inputs.poll_seconds }}') `
+          -HostValidateInstaller:$([System.Convert]::ToBoolean('${{ inputs.host_validate_installer }}')) `
+          -SurfaceRepoRoot '${{ inputs.surface_repo_root }}' `
+          -HostWorkspaceRoot '${{ inputs.host_workspace_root }}' `
           -OutputPath $outputPath
 
         "program_report_path=$outputPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8

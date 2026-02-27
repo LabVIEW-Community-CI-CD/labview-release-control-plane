@@ -23,6 +23,10 @@
       "type": "string",
       "minLength": 1
     },
+    "release_branch": {
+      "type": "string",
+      "minLength": 1
+    },
     "channels_supported": {
       "type": "array",
       "items": {

@@ -22,7 +22,9 @@ Describe 'Enrollment contract' {
     }
 
     It 'enrolls surface and cdev-cli repos as initial wave set' {
-        [string]$script:surfaceEnrollment.repo_id | Should -Be 'LabVIEW-Community-CI-CD/labview-cdev-surface-fork'
+        [string]$script:surfaceEnrollment.repo_id | Should -Be 'LabVIEW-Community-CI-CD/labview-cdev-surface'
+        [string]$script:surfaceEnrollment.release_workflow | Should -Be 'release-control-plane.yml'
+        [string]$script:surfaceEnrollment.release_branch | Should -Be 'main'
         [string]$script:cliEnrollment.repo_id | Should -Be 'LabVIEW-Community-CI-CD/labview-cdev-cli'
     }
 

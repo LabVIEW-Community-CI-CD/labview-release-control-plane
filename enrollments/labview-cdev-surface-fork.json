@@ -1,6 +1,7 @@
 {
-  "repo_id": "LabVIEW-Community-CI-CD/labview-cdev-surface-fork",
-  "release_workflow": "release-workspace-installer.yml",
+  "repo_id": "LabVIEW-Community-CI-CD/labview-cdev-surface",
+  "release_workflow": "release-control-plane.yml",
+  "release_branch": "main",
   "channels_supported": [
     "canary",
     "prerelease",
@@ -25,7 +26,7 @@
     ]
   },
   "incident_targets": {
-    "repository": "LabVIEW-Community-CI-CD/labview-cdev-surface-fork",
+    "repository": "LabVIEW-Community-CI-CD/labview-cdev-surface",
     "issue_titles": [
       "Release Control Plane Alert",
       "Release Control Plane Stable Override Alert"
