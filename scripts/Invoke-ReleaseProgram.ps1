@@ -57,6 +57,8 @@ $reasonCodeTaxonomy = @(
     'rollback_orchestration_failed',
     'stable_window_closed',
     'stable_override_invalid',
+    'host_validation_profile_missing',
+    'host_validation_profile_invalid',
     'host_validation_skipped',
     'nsis_host_validation_failed',
     'program_runtime_error'
@@ -105,6 +107,36 @@ function Add-PhaseResult {
             reason_code = $ReasonCode
             message = $Message
         }) | Out-Null
+}
+
+function Resolve-ReasonCode {
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)][string[]]$Taxonomy
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return 'program_runtime_error'
+    }
+
+    $trimmed = $Message.Trim()
+    foreach ($code in @($Taxonomy)) {
+        if ([string]::IsNullOrWhiteSpace([string]$code)) {
+            continue
+        }
+        if ($trimmed -eq [string]$code -or $trimmed.StartsWith(([string]$code + ':'), [System.StringComparison]::Ordinal)) {
+            return [string]$code
+        }
+    }
+
+    if ($trimmed -match '^(?<reason>[a-z0-9_]+):') {
+        $candidate = [string]$Matches.reason
+        if (@($Taxonomy) -contains $candidate) {
+            return $candidate
+        }
+    }
+
+    return 'program_runtime_error'
 }
 
 function Invoke-GhText {
@@ -293,13 +325,138 @@ function Assert-ReleaseAssets {
     }
 }
 
+function Resolve-SurfaceHostValidationProfile {
+    param(
+        [Parameter(Mandatory = $true)][string]$SurfaceRepoRoot
+    )
+
+    $manifestPath = Join-Path $SurfaceRepoRoot 'workspace-governance.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "host_validation_profile_missing: manifest_missing=$manifestPath"
+    }
+
+    try {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -Depth 100
+    } catch {
+        throw "host_validation_profile_invalid: manifest_parse_failed=$manifestPath"
+    }
+
+    $installerContract = if ($null -ne $manifest.PSObject.Properties['installer_contract']) {
+        $manifest.installer_contract
+    } else {
+        $null
+    }
+    if ($null -eq $installerContract -or $null -eq $installerContract.PSObject.Properties['release_client']) {
+        throw 'host_validation_profile_missing: installer_contract.release_client'
+    }
+
+    $releaseClient = $installerContract.release_client
+    $profile = if ($null -ne $releaseClient.PSObject.Properties['host_validation_profile']) {
+        $releaseClient.host_validation_profile
+    } else {
+        $null
+    }
+    if ($null -eq $profile) {
+        throw 'host_validation_profile_missing: installer_contract.release_client.host_validation_profile'
+    }
+
+    $executionProfile = [string]$profile.execution_profile
+    if ([string]::IsNullOrWhiteSpace($executionProfile)) {
+        throw 'host_validation_profile_invalid: execution_profile_missing'
+    }
+    if ($executionProfile -notin @('host-release', 'container-parity')) {
+        throw "host_validation_profile_invalid: execution_profile=$executionProfile"
+    }
+
+    $executionYear = [string]$profile.runnercli_execution_labview_year
+    if (-not [string]::IsNullOrWhiteSpace($executionYear) -and $executionYear -notmatch '^\d{4}$') {
+        throw "host_validation_profile_invalid: runnercli_execution_labview_year=$executionYear"
+    }
+
+    $singlePplBitness = [string]$profile.single_ppl_bitness
+    if (-not [string]::IsNullOrWhiteSpace($singlePplBitness) -and $singlePplBitness -notin @('32', '64')) {
+        throw "host_validation_profile_invalid: single_ppl_bitness=$singlePplBitness"
+    }
+
+    $parityWindowsTag = [string]$profile.parity_windows_tag
+    if ($executionProfile -eq 'container-parity') {
+        if ($singlePplBitness -notin @('32', '64')) {
+            throw 'host_validation_profile_invalid: single_ppl_bitness_required_for_container_parity'
+        }
+        if ([string]::IsNullOrWhiteSpace($parityWindowsTag)) {
+            throw 'host_validation_profile_invalid: parity_windows_tag_required_for_container_parity'
+        }
+    }
+
+    return [ordered]@{
+        execution_profile = $executionProfile
+        runnercli_execution_labview_year = $executionYear
+        single_ppl_bitness = $singlePplBitness
+        parity_windows_tag = $parityWindowsTag
+    }
+}
+
+function Get-HostValidationEnvironmentOverrides {
+    param([Parameter(Mandatory = $true)]$HostValidationProfile)
+
+    $overrides = @{}
+    $overrides['LVIE_INSTALLER_EXECUTION_PROFILE'] = [string]$HostValidationProfile.execution_profile
+    if (-not [string]::IsNullOrWhiteSpace([string]$HostValidationProfile.runnercli_execution_labview_year)) {
+        $overrides['LVIE_RUNNERCLI_EXECUTION_LABVIEW_YEAR'] = [string]$HostValidationProfile.runnercli_execution_labview_year
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$HostValidationProfile.single_ppl_bitness)) {
+        $overrides['LVIE_GATE_SINGLE_PPL_BITNESS'] = [string]$HostValidationProfile.single_ppl_bitness
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$HostValidationProfile.parity_windows_tag)) {
+        $overrides['LVIE_PARITY_WINDOWS_TAG'] = [string]$HostValidationProfile.parity_windows_tag
+    }
+
+    return $overrides
+}
+
+function Set-TemporaryEnvironmentVariables {
+    param([Parameter(Mandatory = $true)][hashtable]$Variables)
+
+    $snapshot = @{}
+    foreach ($name in $Variables.Keys) {
+        $entry = Get-Item -Path ("Env:{0}" -f $name) -ErrorAction SilentlyContinue
+        $snapshot[$name] = [pscustomobject]@{
+            exists = ($null -ne $entry)
+            value = if ($null -ne $entry) { [string]$entry.Value } else { '' }
+        }
+
+        $value = [string]$Variables[$name]
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            Remove-Item -Path ("Env:{0}" -f $name) -ErrorAction SilentlyContinue
+        } else {
+            Set-Item -Path ("Env:{0}" -f $name) -Value $value
+        }
+    }
+
+    return $snapshot
+}
+
+function Restore-TemporaryEnvironmentVariables {
+    param([Parameter(Mandatory = $true)][hashtable]$Snapshot)
+
+    foreach ($name in $Snapshot.Keys) {
+        $entry = $Snapshot[$name]
+        if ([bool]$entry.exists) {
+            Set-Item -Path ("Env:{0}" -f $name) -Value ([string]$entry.value)
+        } else {
+            Remove-Item -Path ("Env:{0}" -f $name) -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Invoke-HostNsisValidation {
     param(
         [Parameter(Mandatory = $true)][string]$SurfaceRepoRoot,
         [Parameter(Mandatory = $true)][string]$Repository,
         [Parameter(Mandatory = $true)][string]$ReleaseTag,
         [Parameter(Mandatory = $true)][string]$WorkspaceRoot,
-        [Parameter(Mandatory = $true)][string]$ScratchRoot
+        [Parameter(Mandatory = $true)][string]$ScratchRoot,
+        [Parameter(Mandatory = $true)]$HostValidationProfile
     )
 
     $installerScriptPath = Join-Path $SurfaceRepoRoot 'scripts/Install-WorkspaceInstallerFromRelease.ps1'
@@ -312,14 +469,28 @@ function Invoke-HostNsisValidation {
     }
 
     $hostReportPath = Join-Path $ScratchRoot 'nsis-host-validation-report.json'
-    $hostCommandOutput = & pwsh -NoProfile -File $installerScriptPath `
-        -WorkspaceRoot $WorkspaceRoot `
-        -ManifestPath $manifestPath `
-        -Mode Install `
-        -Channel canary `
-        -Tag $ReleaseTag `
-        -Repository $Repository `
-        -OutputPath $hostReportPath 2>&1
+    $hostCommandOutput = @()
+    $environmentOverrides = Get-HostValidationEnvironmentOverrides -HostValidationProfile $HostValidationProfile
+    $environmentSnapshot = @{}
+    try {
+        if ($environmentOverrides.Count -gt 0) {
+            $environmentSnapshot = Set-TemporaryEnvironmentVariables -Variables $environmentOverrides
+        }
+
+        $hostCommandOutput = & pwsh -NoProfile -File $installerScriptPath `
+            -WorkspaceRoot $WorkspaceRoot `
+            -ManifestPath $manifestPath `
+            -Mode Install `
+            -Channel canary `
+            -Tag $ReleaseTag `
+            -Repository $Repository `
+            -OutputPath $hostReportPath 2>&1
+    } finally {
+        if ($environmentSnapshot.Count -gt 0) {
+            Restore-TemporaryEnvironmentVariables -Snapshot $environmentSnapshot
+        }
+    }
+
     $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
     if ($exitCode -ne 0) {
         $message = if (Test-Path -LiteralPath $hostReportPath -PathType Leaf) {
@@ -344,6 +515,8 @@ function Invoke-HostNsisValidation {
         install_report_path = [string]$hostReport.install_report_path
         release_tag = [string]$hostReport.release_tag
         repository = [string]$hostReport.repository
+        host_validation_profile = $HostValidationProfile
+        host_validation_environment = $environmentOverrides
     }
 }
 
@@ -402,6 +575,14 @@ try {
         [string]$enrollment.release_branch
     } else {
         'main'
+    }
+    $promotionMode = @('CanaryCycle', 'PromotePrerelease', 'PromoteStable', 'FullCycle') -contains $Mode
+    $shouldHostValidate = $promotionMode -and -not $DryRun -and $HostValidateInstaller
+    $hostValidationProfile = $null
+    if ($shouldHostValidate) {
+        $hostValidationProfile = Resolve-SurfaceHostValidationProfile -SurfaceRepoRoot $SurfaceRepoRoot
+        $report.details.host_validation.profile = $hostValidationProfile
+        Add-PhaseResult -Target $phaseResults -Phase 'host_validation_profile_preflight' -Status 'pass' -ReasonCode 'ok'
     }
 
     $report.enrollment = [ordered]@{
@@ -490,7 +671,6 @@ try {
     }
     Add-PhaseResult -Target $phaseResults -Phase 'control_plane_watch' -Status 'pass' -ReasonCode 'ok'
 
-    $promotionMode = @('CanaryCycle', 'PromotePrerelease', 'PromoteStable', 'FullCycle') -contains $Mode
     if ($promotionMode -and -not $DryRun) {
         $releaseTag = Resolve-ReleaseTagFromControlReport -ControlReport $controlReport -Mode $Mode
         if ([string]::IsNullOrWhiteSpace($releaseTag)) {
@@ -507,7 +687,8 @@ try {
                 -Repository $targetRepository `
                 -ReleaseTag $releaseTag `
                 -WorkspaceRoot $HostWorkspaceRoot `
-                -ScratchRoot $scratchRoot
+                -ScratchRoot $scratchRoot `
+                -HostValidationProfile $hostValidationProfile
             $report.details.host_validation = $hostValidation
             Add-PhaseResult -Target $phaseResults -Phase 'host_nsis_validation' -Status 'pass' -ReasonCode 'ok' -Message ("tag={0}" -f $releaseTag)
         } else {
@@ -523,8 +704,10 @@ try {
 }
 catch {
     $failureReason = [string]$_.Exception.Message
+    $normalizedReason = Resolve-ReasonCode -Message $failureReason -Taxonomy $reasonCodeTaxonomy
     $report.status = 'fail'
-    $report.reason_code = if ([string]::IsNullOrWhiteSpace($failureReason)) { 'program_runtime_error' } else { $failureReason }
+    $report.reason_code = $normalizedReason
+    $report.details.failure_message = $failureReason
     Add-PhaseResult -Target $phaseResults -Phase 'failure' -Status 'fail' -ReasonCode $report.reason_code -Message $failureReason
 }
 finally {
