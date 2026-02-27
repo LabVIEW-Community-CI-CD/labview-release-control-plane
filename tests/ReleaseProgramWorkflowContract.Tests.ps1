@@ -41,7 +41,12 @@ Describe 'Release program workflow contract' {
         $script:runtimeContent | Should -Match 'reasonCodeTaxonomy'
         $script:runtimeContent | Should -Match 'release_dispatch_watch_timeout'
         $script:runtimeContent | Should -Match 'control_plane_watch_timeout'
+        $script:runtimeContent | Should -Match 'host_validation_profile_missing'
+        $script:runtimeContent | Should -Match 'host_validation_profile_invalid'
         $script:runtimeContent | Should -Match 'rollback_orchestration_failed'
+        $script:runtimeContent | Should -Match 'Resolve-SurfaceHostValidationProfile'
+        $script:runtimeContent | Should -Match 'host_validation_profile_preflight'
+        $script:runtimeContent | Should -Match 'Resolve-ReasonCode'
         $script:runtimeContent | Should -Match 'Write-ProgramReport'
     }
 }
